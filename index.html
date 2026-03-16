@@ -192,10 +192,21 @@ function renderSetup() {
     document.getElementById('profile-area').innerHTML = `<div class="setup-card">
       <h2>Step 2 — Set up your profile</h2>
       <p>Your profile is what powers the job evaluator and proposal writer. The more detail you add, the better the results.</p>
+      <div style="background:#f5f5f3;border:1.5px dashed #ddd;border-radius:10px;padding:1.25rem;margin-bottom:1.25rem;">
+        <div style="font-size:13px;font-weight:500;margin-bottom:4px;">Upload your Upwork profile screenshot</div>
+        <div style="font-size:12px;color:#888;margin-bottom:12px;">Take a screenshot of your Upwork profile page and upload it. Claude will read it and fill in your details automatically.</div>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+          <input type="file" id="profile-img" accept="image/*" style="display:none;" onchange="handleImageUpload(this)">
+          <button class="btn btn-sm" onclick="document.getElementById('profile-img').click()">Choose screenshot</button>
+          <div id="img-status" style="font-size:12px;color:#888;"></div>
+        </div>
+        <div id="scan-loading" style="display:none;font-size:13px;color:#888;margin-top:10px;">Reading your profile...</div>
+      </div>
+      <div style="font-size:11px;font-weight:500;color:#888;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:10px;">Or fill in manually</div>
       <div class="form-row"><label>Your name</label><input type="text" id="p-name" placeholder="e.g. Alex Chen"></div>
       <div class="form-row"><label>Your role / title</label><input type="text" id="p-role" placeholder="e.g. Senior Product Designer"></div>
       <div class="form-row"><label>Skills (comma separated)</label><input type="text" id="p-skills" placeholder="e.g. UX/UI Design, Figma, Design Systems, SaaS, B2B"></div>
-      <div class="form-row"><label>Work history</label><textarea id="p-work" placeholder="e.g. Senior Designer at Acme Co (2022-present) — SaaS dashboard redesign. Lead Designer at Studio XYZ (2019-2022) — brand identity and web."></textarea></div>
+      <div class="form-row"><label>Work history</label><textarea id="p-work" placeholder="e.g. Senior Designer at Acme Co (2022-present), SaaS dashboard redesign. Lead Designer at Studio XYZ (2019-2022), brand identity and web."></textarea></div>
       <div class="form-row"><label>Hourly rate</label><input type="text" id="p-rate" placeholder="e.g. $75/hr"></div>
       <div class="form-row"><label>Strengths and specialties</label><input type="text" id="p-strengths" placeholder="e.g. data dashboards, complex workflows, Figma-native, design systems"></div>
       <button class="btn btn-primary" onclick="saveProfile()">Save profile and continue</button>
@@ -233,6 +244,63 @@ function saveProfile() {
 }
 
 function editProfile() { localStorage.removeItem('upwork_profile'); renderSetup(); }
+
+async function handleImageUpload(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const key = getKey();
+  if (!key) { alert('Please save your API key first.'); return; }
+  document.getElementById('img-status').textContent = file.name;
+  document.getElementById('scan-loading').style.display = 'block';
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    const base64 = e.target.result.split(',')[1];
+    const mediaType = file.type || 'image/png';
+    const prompt = `This is a screenshot of someone's Upwork freelancer profile. Extract the following information and respond ONLY with valid JSON, no markdown:
+{
+  "name": "<full name>",
+  "role": "<job title or headline>",
+  "skills": "<comma separated list of skills shown>",
+  "work": "<work history summary, company names, roles, dates if visible>",
+  "rate": "<hourly rate if visible, otherwise empty>",
+  "strengths": "<key strengths or specialties based on their profile bio and skills>"
+}
+If a field is not visible, leave it as an empty string.`;
+    try {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 1000,
+          messages: [{ role: 'user', content: [
+            { type: 'image', source: { type: 'base64', media_type: mediaType, data: base64 } },
+            { type: 'text', text: prompt }
+          ]}]
+        })
+      });
+      if (!res.ok) { const err = await res.json(); throw new Error(err.error?.message || res.status); }
+      const data = await res.json();
+      const text = data.content.map(c => c.text || '').join('').trim();
+      const p = JSON.parse(text.replace(/```json|```/g,'').trim());
+      if (document.getElementById('p-name')) {
+        document.getElementById('p-name').value = p.name || '';
+        document.getElementById('p-role').value = p.role || '';
+        document.getElementById('p-skills').value = p.skills || '';
+        document.getElementById('p-work').value = p.work || '';
+        document.getElementById('p-rate').value = p.rate || '';
+        document.getElementById('p-strengths').value = p.strengths || '';
+      }
+      document.getElementById('img-status').textContent = 'Profile filled in. Review and save.';
+      document.getElementById('img-status').style.color = '#3b6d11';
+    } catch(err) {
+      document.getElementById('img-status').textContent = 'Error reading image: ' + err.message;
+      document.getElementById('img-status').style.color = '#a32d2d';
+    }
+    document.getElementById('scan-loading').style.display = 'none';
+  };
+  reader.readAsDataURL(file);
+}
 
 function profileToString() {
   const p = getProfile();
