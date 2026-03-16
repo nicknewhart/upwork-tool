@@ -18,9 +18,10 @@
   .panel { display: none; }
   .panel.active { display: block; }
   .section-label { font-size: 11px; font-weight: 500; color: #888; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px; }
-  textarea { width: 100%; min-height: 150px; resize: vertical; padding: 12px; font-size: 14px; border: 1px solid #ddd; border-radius: 8px; font-family: inherit; color: #1a1a1a; background: #fff; line-height: 1.6; }
+  textarea { width: 100%; resize: vertical; padding: 12px; font-size: 14px; border: 1px solid #ddd; border-radius: 8px; font-family: inherit; color: #1a1a1a; background: #fff; line-height: 1.6; min-height: 90px; }
+  textarea.tall { min-height: 150px; }
   textarea:focus { outline: none; border-color: #999; }
-  input[type="text"], input[type="number"], select { padding: 9px 12px; font-size: 14px; border: 1px solid #ddd; border-radius: 8px; background: #fff; color: #1a1a1a; font-family: inherit; }
+  input[type="text"], input[type="number"], input[type="password"], select { padding: 9px 12px; font-size: 14px; border: 1px solid #ddd; border-radius: 8px; background: #fff; color: #1a1a1a; font-family: inherit; width: 100%; }
   input:focus, select:focus { outline: none; border-color: #999; }
   .btn { padding: 9px 20px; font-size: 14px; cursor: pointer; border-radius: 8px; border: 1px solid #ddd; background: #fff; color: #1a1a1a; font-family: inherit; transition: background 0.1s; }
   .btn:hover { background: #f0f0ee; }
@@ -63,17 +64,19 @@
   .dot-anim span:nth-child(2) { animation-delay: 0.2s; }
   .dot-anim span:nth-child(3) { animation-delay: 0.4s; }
   @keyframes blink { 0%,80%,100% { opacity: 0.2; } 40% { opacity: 1; } }
-  .proposal-out { white-space: pre-wrap; font-size: 14px; line-height: 1.8; color: #1a1a1a; background: #f9f9f7; border-radius: 8px; padding: 1.25rem; margin-top: 1rem; border: 1px solid #e5e5e2; min-height: 80px; }
+  .proposal-out { white-space: pre-wrap; font-size: 14px; line-height: 1.8; color: #1a1a1a; background: #f9f9f7; border-radius: 8px; padding: 1.25rem; margin-top: 1rem; border: 1px solid #e5e5e2; }
   .tone-btn.active-tone { background: #1a1a1a; color: #fff; border-color: #1a1a1a; }
   .log-section { background: #fff; border: 1px solid #e5e5e2; border-radius: 12px; padding: 1.25rem; }
   .log-form { background: #fff; border: 1px solid #e5e5e2; border-radius: 12px; padding: 1.25rem; margin-bottom: 1.5rem; }
   .copy-toast { position: fixed; bottom: 24px; right: 24px; background: #1a1a1a; color: #fff; padding: 10px 18px; border-radius: 8px; font-size: 13px; opacity: 0; transition: opacity 0.2s; pointer-events: none; }
   .copy-toast.show { opacity: 1; }
   .red-flag { margin-top: 10px; font-size: 13px; color: #854f0b; background: #faeeda; border-radius: 6px; padding: 8px 12px; }
-  .api-note { background: #f0f0ee; border-radius: 8px; padding: 12px 16px; font-size: 13px; color: #666; margin-bottom: 1.5rem; line-height: 1.6; }
-  .api-note a { color: #1a1a1a; }
-  .key-row { display: flex; gap: 8px; margin-top: 8px; }
-  .key-row input { flex: 1; font-family: monospace; font-size: 13px; }
+  .setup-card { background: #fff; border: 1px solid #e5e5e2; border-radius: 12px; padding: 1.5rem; margin-bottom: 1.5rem; }
+  .setup-card h2 { font-size: 16px; font-weight: 500; margin-bottom: 4px; }
+  .setup-card p { font-size: 13px; color: #888; margin-bottom: 1.25rem; line-height: 1.6; }
+  .form-row { margin-bottom: 14px; }
+  .form-row label { display: block; font-size: 11px; font-weight: 500; color: #888; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; }
+  .status-bar { background: #f0f0ee; border-radius: 8px; padding: 10px 16px; font-size: 13px; color: #555; margin-bottom: 1.5rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
 </style>
 </head>
 <body>
@@ -83,146 +86,177 @@
     <p>Job evaluator · Proposal writer · Connects tracker</p>
   </header>
 
-  <div class="api-note" id="api-setup">
-    <strong>One-time setup:</strong> This tool uses the Claude API to evaluate jobs and write proposals. Add your Anthropic API key below to get started. Your key is stored locally in this browser only. <a href="https://console.anthropic.com/settings/keys" target="_blank">Get a key →</a>
-    <div class="key-row">
-      <input type="password" id="api-key-input" placeholder="sk-ant-..." />
-      <button class="btn btn-primary btn-sm" onclick="saveKey()">Save key</button>
+  <div id="setup-area"></div>
+  <div id="profile-area"></div>
+  <div id="main-tool" style="display:none;">
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab('evaluate')">Job evaluator</button>
+      <button class="tab" onclick="switchTab('proposal')">Proposal writer</button>
+      <button class="tab" onclick="switchTab('connects')">Connects tracker</button>
     </div>
-  </div>
-
-  <div class="tabs">
-    <button class="tab active" onclick="switchTab('evaluate')">Job evaluator</button>
-    <button class="tab" onclick="switchTab('proposal')">Proposal writer</button>
-    <button class="tab" onclick="switchTab('connects')">Connects tracker</button>
-  </div>
-
-  <div id="tab-evaluate" class="panel active">
-    <div class="section-label">Paste job post</div>
-    <textarea id="job-input" placeholder="Paste the full Upwork job description here..."></textarea>
-    <p class="tip">Scores fit against your profile: product design, SaaS, brand, UX/UI, design systems.</p>
-    <div style="display:flex;gap:8px;margin-top:12px;">
-      <button class="btn btn-primary" onclick="evaluateJob()">Evaluate fit</button>
-      <button class="btn btn-sm" onclick="clearEval()">Clear</button>
-    </div>
-    <div id="eval-loading" style="display:none;" class="loading">Analyzing job <div class="dot-anim"><span>.</span><span>.</span><span>.</span></div></div>
-    <div id="eval-result" style="display:none;"></div>
-  </div>
-
-  <div id="tab-proposal" class="panel">
-    <div class="section-label">Job description</div>
-    <textarea id="prop-job" placeholder="Paste the job post you want to apply to..."></textarea>
-    <div style="margin-top:14px;">
-      <div class="section-label">Tone</div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;">
-        <button class="btn btn-sm tone-btn active-tone" data-tone="direct and confident" onclick="setTone(this)">Direct</button>
-        <button class="btn btn-sm tone-btn" data-tone="warm and collaborative" onclick="setTone(this)">Warm</button>
-        <button class="btn btn-sm tone-btn" data-tone="strategic and senior" onclick="setTone(this)">Senior</button>
+    <div id="tab-evaluate" class="panel active">
+      <div class="section-label">Paste job post</div>
+      <textarea id="job-input" class="tall" placeholder="Paste the full Upwork job description here..."></textarea>
+      <p class="tip">Scores fit against your profile and skills.</p>
+      <div style="display:flex;gap:8px;margin-top:12px;">
+        <button class="btn btn-primary" onclick="evaluateJob()">Evaluate fit</button>
+        <button class="btn btn-sm" onclick="clearEval()">Clear</button>
       </div>
+      <div id="eval-loading" style="display:none;" class="loading">Analyzing job <div class="dot-anim"><span>.</span><span>.</span><span>.</span></div></div>
+      <div id="eval-result" style="display:none;"></div>
     </div>
-    <button class="btn btn-primary" onclick="generateProposal()">Write proposal</button>
-    <div id="prop-loading" style="display:none;" class="loading">Writing proposal <div class="dot-anim"><span>.</span><span>.</span><span>.</span></div></div>
-    <div id="prop-result" style="display:none;"></div>
-  </div>
-
-  <div id="tab-connects" class="panel">
-    <div id="low-connects-alert" class="connects-alert" style="display:none;"></div>
-    <div class="connects-grid">
-      <div class="metric-card"><div class="metric-label">Balance</div><div class="metric-val" id="m-balance">5</div></div>
-      <div class="metric-card"><div class="metric-label">Spent total</div><div class="metric-val" id="m-spent">0</div></div>
-      <div class="metric-card"><div class="metric-label">Response rate</div><div class="metric-val" id="m-rate">—</div></div>
-    </div>
-
-    <div class="log-form">
-      <div class="section-label" style="margin-bottom:12px;">Log an application</div>
-      <div style="display:grid;gap:10px;">
-        <input type="text" id="c-job" placeholder="Job title" style="width:100%;">
-        <div style="display:flex;gap:8px;">
-          <input type="number" id="c-connects" placeholder="Connects spent" style="width:150px;">
-          <select id="c-status" style="flex:1;">
-            <option value="sent">Sent</option>
-            <option value="response">Got response</option>
-            <option value="pass">Passed / no response</option>
-          </select>
-        </div>
-        <div style="display:flex;gap:8px;">
-          <button class="btn btn-primary btn-sm" onclick="logApp()">Log it</button>
-          <button class="btn btn-sm" onclick="updateBalance()">Update balance</button>
+    <div id="tab-proposal" class="panel">
+      <div class="section-label">Job description</div>
+      <textarea id="prop-job" class="tall" placeholder="Paste the job post you want to apply to..."></textarea>
+      <div style="margin-top:14px;">
+        <div class="section-label">Tone</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;">
+          <button class="btn btn-sm tone-btn active-tone" data-tone="direct and confident" onclick="setTone(this)">Direct</button>
+          <button class="btn btn-sm tone-btn" data-tone="warm and collaborative" onclick="setTone(this)">Warm</button>
+          <button class="btn btn-sm tone-btn" data-tone="strategic and senior" onclick="setTone(this)">Senior</button>
         </div>
       </div>
+      <button class="btn btn-primary" onclick="generateProposal()">Write proposal</button>
+      <div id="prop-loading" style="display:none;" class="loading">Writing proposal <div class="dot-anim"><span>.</span><span>.</span><span>.</span></div></div>
+      <div id="prop-result" style="display:none;"></div>
     </div>
-
-    <div id="log-wrap" style="display:none;" class="log-section">
-      <div class="section-label" style="margin-bottom:10px;">Application log</div>
-      <table class="log-table">
-        <thead><tr><th>Job</th><th>Connects</th><th>Status</th></tr></thead>
-        <tbody id="log-body"></tbody>
-      </table>
+    <div id="tab-connects" class="panel">
+      <div id="low-connects-alert" class="connects-alert" style="display:none;"></div>
+      <div class="connects-grid">
+        <div class="metric-card"><div class="metric-label">Balance</div><div class="metric-val" id="m-balance">0</div></div>
+        <div class="metric-card"><div class="metric-label">Spent total</div><div class="metric-val" id="m-spent">0</div></div>
+        <div class="metric-card"><div class="metric-label">Response rate</div><div class="metric-val" id="m-rate">—</div></div>
+      </div>
+      <div class="log-form">
+        <div class="section-label" style="margin-bottom:12px;">Log an application</div>
+        <div style="display:grid;gap:10px;">
+          <input type="text" id="c-job" placeholder="Job title">
+          <div style="display:flex;gap:8px;">
+            <input type="number" id="c-connects" placeholder="Connects spent" style="width:150px;">
+            <select id="c-status" style="flex:1;">
+              <option value="sent">Sent</option>
+              <option value="response">Got response</option>
+              <option value="pass">Passed / no response</option>
+            </select>
+          </div>
+          <div style="display:flex;gap:8px;">
+            <button class="btn btn-primary btn-sm" onclick="logApp()">Log it</button>
+            <button class="btn btn-sm" onclick="updateBalance()">Update balance</button>
+          </div>
+        </div>
+      </div>
+      <div id="log-wrap" style="display:none;" class="log-section">
+        <div class="section-label" style="margin-bottom:10px;">Application log</div>
+        <table class="log-table">
+          <thead><tr><th>Job</th><th>Connects</th><th>Status</th></tr></thead>
+          <tbody id="log-body"></tbody>
+        </table>
+      </div>
+      <div id="empty-log" style="font-size:13px;color:#999;">No applications logged yet.</div>
     </div>
-    <div id="empty-log" style="font-size:13px;color:#999;">No applications logged yet.</div>
   </div>
 </div>
-
 <div class="copy-toast" id="toast">Copied to clipboard</div>
 
 <script>
-const PROFILE = `Nick is a Senior UX/UI and Product Designer with nearly 10 years of experience.
-Skills: Product Design, UX/UI Design, Brand Identity, Design Systems, SaaS platforms, B2B dashboards, complex workflows, Figma, motion graphics, packaging, web design.
-Recent work: Senior UX/UI Designer at LiveBy (2023-present) — SaaS platform for real estate data; UX/UI & Brand Designer at Brandzooka (2021-2023) — self-serve programmatic advertising platform; Owner/Lead Designer at A New Design Co (2019-2024) — brand identities, packaging, marketing, UX/web.
-Rate: $40/hr on profile (actual value closer to $70/hr based on past work). Rising Talent badge. 5.0 rating. 522 hours. $20K+ earned.
-Strong in: data-heavy dashboards, B2B SaaS, complex user workflows, design systems, Figma-native workflow, brand + product hybrid work.
-Not suited for: pure development/coding, pure illustration, video production.`;
-
 let tone = 'direct and confident';
-let balance = 5;
+let balance = 0;
 let spent = 0;
 let applications = [];
 
-function getKey() { return localStorage.getItem('anthropic_key') || ''; }
-function saveKey() {
-  const k = document.getElementById('api-key-input').value.trim();
-  if (k) { localStorage.setItem('anthropic_key', k); document.getElementById('api-setup').innerHTML = '<span style="color:#3b6d11;font-size:13px;">API key saved. You\'re all set.</span>'; }
-}
+function getKey() { return localStorage.getItem('upwork_api_key') || ''; }
+function getProfile() { try { return JSON.parse(localStorage.getItem('upwork_profile')); } catch(e) { return null; } }
 
 window.onload = () => {
-  if (getKey()) document.getElementById('api-setup').innerHTML = '<span style="color:#3b6d11;font-size:13px;">API key saved. You\'re all set. <button class="btn btn-sm" onclick="resetKey()" style="margin-left:8px;">Change key</button></span>';
+  renderSetup();
   const saved = localStorage.getItem('upwork_apps');
-  if (saved) {
-    const d = JSON.parse(saved);
-    applications = d.applications || [];
-    balance = d.balance || 5;
-    spent = d.spent || 0;
-    refreshMetrics();
-    renderLog();
-  }
+  if (saved) { const d = JSON.parse(saved); applications = d.applications||[]; balance = d.balance||0; spent = d.spent||0; }
 };
 
-function resetKey() {
-  localStorage.removeItem('anthropic_key');
-  document.getElementById('api-setup').innerHTML = `<strong>One-time setup:</strong> Add your Anthropic API key. <a href="https://console.anthropic.com/settings/keys" target="_blank">Get a key →</a><div class="key-row"><input type="password" id="api-key-input" placeholder="sk-ant-..." /><button class="btn btn-primary btn-sm" onclick="saveKey()">Save key</button></div>`;
+function renderSetup() {
+  const hasKey = getKey();
+  const p = getProfile();
+  if (!hasKey) {
+    document.getElementById('setup-area').innerHTML = `<div class="setup-card">
+      <h2>Step 1 — Add your API key</h2>
+      <p>This tool uses the Claude API. Get a free key at <a href="https://console.anthropic.com/settings/keys" target="_blank">console.anthropic.com</a>.</p>
+      <div class="form-row"><label>Anthropic API key</label><input type="password" id="api-key-input" placeholder="sk-ant-..."></div>
+      <button class="btn btn-primary" onclick="saveKey()">Save key</button>
+    </div>`;
+    document.getElementById('profile-area').innerHTML = '';
+    document.getElementById('main-tool').style.display = 'none';
+    return;
+  }
+  document.getElementById('setup-area').innerHTML = `<div class="status-bar"><span>API key saved</span><button class="btn btn-sm" onclick="resetKey()">Change key</button></div>`;
+  if (!p) {
+    document.getElementById('profile-area').innerHTML = `<div class="setup-card">
+      <h2>Step 2 — Set up your profile</h2>
+      <p>Your profile is what powers the job evaluator and proposal writer. The more detail you add, the better the results.</p>
+      <div class="form-row"><label>Your name</label><input type="text" id="p-name" placeholder="e.g. Alex Chen"></div>
+      <div class="form-row"><label>Your role / title</label><input type="text" id="p-role" placeholder="e.g. Senior Product Designer"></div>
+      <div class="form-row"><label>Skills (comma separated)</label><input type="text" id="p-skills" placeholder="e.g. UX/UI Design, Figma, Design Systems, SaaS, B2B"></div>
+      <div class="form-row"><label>Work history</label><textarea id="p-work" placeholder="e.g. Senior Designer at Acme Co (2022-present) — SaaS dashboard redesign. Lead Designer at Studio XYZ (2019-2022) — brand identity and web."></textarea></div>
+      <div class="form-row"><label>Hourly rate</label><input type="text" id="p-rate" placeholder="e.g. $75/hr"></div>
+      <div class="form-row"><label>Strengths and specialties</label><input type="text" id="p-strengths" placeholder="e.g. data dashboards, complex workflows, Figma-native, design systems"></div>
+      <button class="btn btn-primary" onclick="saveProfile()">Save profile and continue</button>
+    </div>`;
+    document.getElementById('main-tool').style.display = 'none';
+    return;
+  }
+  document.getElementById('profile-area').innerHTML = `<div class="status-bar"><span>Profile: ${p.name}, ${p.role}</span><button class="btn btn-sm" onclick="editProfile()">Edit profile</button></div>`;
+  document.getElementById('main-tool').style.display = 'block';
+  refreshMetrics();
+  renderLog();
 }
 
-function saveData() {
-  localStorage.setItem('upwork_apps', JSON.stringify({ applications, balance, spent }));
+function saveKey() {
+  const k = document.getElementById('api-key-input').value.trim();
+  if (!k) return;
+  localStorage.setItem('upwork_api_key', k);
+  renderSetup();
 }
+
+function resetKey() { localStorage.removeItem('upwork_api_key'); renderSetup(); }
+
+function saveProfile() {
+  const p = {
+    name: document.getElementById('p-name').value.trim(),
+    role: document.getElementById('p-role').value.trim(),
+    skills: document.getElementById('p-skills').value.trim(),
+    work: document.getElementById('p-work').value.trim(),
+    rate: document.getElementById('p-rate').value.trim(),
+    strengths: document.getElementById('p-strengths').value.trim()
+  };
+  if (!p.name || !p.role) { alert('Please add at least your name and role.'); return; }
+  localStorage.setItem('upwork_profile', JSON.stringify(p));
+  renderSetup();
+}
+
+function editProfile() { localStorage.removeItem('upwork_profile'); renderSetup(); }
+
+function profileToString() {
+  const p = getProfile();
+  if (!p) return '';
+  return `Name: ${p.name}\nRole: ${p.role}\nSkills: ${p.skills}\nWork history: ${p.work}\nRate: ${p.rate}\nStrengths: ${p.strengths}`;
+}
+
+function saveData() { localStorage.setItem('upwork_apps', JSON.stringify({ applications, balance, spent })); }
 
 function switchTab(name) {
-  document.querySelectorAll('.tab').forEach((t, i) => {
-    t.classList.toggle('active', ['evaluate','proposal','connects'][i] === name);
-  });
+  document.querySelectorAll('.tab').forEach((t, i) => t.classList.toggle('active', ['evaluate','proposal','connects'][i] === name));
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
   document.getElementById('tab-' + name).classList.add('active');
 }
 
 function setTone(el) {
-  document.querySelectorAll('.tone-btn').forEach(b => { b.classList.remove('active-tone'); });
+  document.querySelectorAll('.tone-btn').forEach(b => b.classList.remove('active-tone'));
   el.classList.add('active-tone');
   tone = el.dataset.tone;
 }
 
 async function callClaude(prompt) {
   const key = getKey();
-  if (!key) { alert('Please add your API key first (top of the page).'); return null; }
+  if (!key) { alert('Please add your API key first.'); return null; }
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
@@ -238,35 +272,12 @@ async function evaluateJob() {
   if (!job) return;
   document.getElementById('eval-loading').style.display = 'flex';
   document.getElementById('eval-result').style.display = 'none';
-
-  const prompt = `You are evaluating a freelance job post for Nick, a senior product/UX designer.
-
-NICK'S PROFILE:
-${PROFILE}
-
-JOB POST:
-${job}
-
-Respond ONLY with valid JSON, no markdown, no explanation:
-{
-  "score": <0-100 integer>,
-  "verdict": "<Go / Maybe / Pass>",
-  "reason": "<1 sentence why>",
-  "match_skills": ["skill1","skill2"],
-  "missing_skills": ["skill1"],
-  "rate_fit": <0-100>,
-  "scope_fit": <0-100>,
-  "skill_fit": <0-100>,
-  "connects_worth": "<Low (2-4) / Medium (4-6) / High (6+)>",
-  "red_flags": "<any concerns or empty string>"
-}`;
-
+  const prompt = `Evaluate this Upwork job post for a freelancer.\n\nFREELANCER PROFILE:\n${profileToString()}\n\nJOB POST:\n${job}\n\nRespond ONLY with valid JSON, no markdown:\n{"score":<0-100>,"verdict":"<Go/Maybe/Pass>","reason":"<1 sentence>","match_skills":["skill1"],"missing_skills":["skill1"],"rate_fit":<0-100>,"scope_fit":<0-100>,"skill_fit":<0-100>,"connects_worth":"<Low (2-4)/Medium (4-6)/High (6+)>","red_flags":"<concerns or empty>"}`;
   const text = await callClaude(prompt);
   document.getElementById('eval-loading').style.display = 'none';
   if (!text) return;
   try {
-    const r = JSON.parse(text.replace(/```json|```/g,'').trim());
-    renderEval(r);
+    renderEval(JSON.parse(text.replace(/```json|```/g,'').trim()));
   } catch(e) {
     document.getElementById('eval-result').innerHTML = '<div class="result-card" style="color:#a32d2d;">Could not parse result. Try again.</div>';
     document.getElementById('eval-result').style.display = 'block';
@@ -274,31 +285,22 @@ Respond ONLY with valid JSON, no markdown, no explanation:
 }
 
 function renderEval(r) {
-  const scoreClass = r.score >= 70 ? 'score-high' : r.score >= 45 ? 'score-mid' : 'score-low';
-  const matchTags = (r.match_skills||[]).map(s => `<span class="tag tag-match">${s}</span>`).join('');
-  const missTags = (r.missing_skills||[]).map(s => `<span class="tag tag-miss">${s}</span>`).join('');
-  const redFlag = r.red_flags ? `<div class="red-flag">⚠ ${r.red_flags}</div>` : '';
+  const sc = r.score >= 70 ? 'score-high' : r.score >= 45 ? 'score-mid' : 'score-low';
+  const mt = (r.match_skills||[]).map(s => `<span class="tag tag-match">${s}</span>`).join('');
+  const ms = (r.missing_skills||[]).map(s => `<span class="tag tag-miss">${s}</span>`).join('');
+  const rf = r.red_flags ? `<div class="red-flag">⚠ ${r.red_flags}</div>` : '';
   document.getElementById('eval-result').innerHTML = `<div class="result-card">
-    <div class="score-row">
-      <div class="score-circle ${scoreClass}">${r.score}</div>
-      <div><div class="verdict">${r.verdict}</div><div class="verdict-sub">${r.reason}</div></div>
-    </div>
+    <div class="score-row"><div class="score-circle ${sc}">${r.score}</div><div><div class="verdict">${r.verdict}</div><div class="verdict-sub">${r.reason}</div></div></div>
     <hr class="divider">
-    <div class="breakdown">
-      ${bar('Skill fit', r.skill_fit)}
-      ${bar('Rate fit', r.rate_fit)}
-      ${bar('Scope fit', r.scope_fit)}
-    </div>
+    <div class="breakdown">${bar('Skill fit',r.skill_fit)}${bar('Rate fit',r.rate_fit)}${bar('Scope fit',r.scope_fit)}</div>
     <hr class="divider">
     <div style="font-size:12px;color:#888;margin-bottom:6px;">Skills match</div>
-    <div>${matchTags}${missTags}</div>
-    ${redFlag}
+    <div>${mt}${ms}</div>${rf}
     <hr class="divider">
     <div style="display:flex;justify-content:space-between;align-items:center;">
       <div style="font-size:13px;color:#888;">Connects value: <strong style="color:#1a1a1a;">${r.connects_worth}</strong></div>
-      <button class="btn btn-primary btn-sm" onclick="sendToProposal()">Write proposal →</button>
-    </div>
-  </div>`;
+      <button class="btn btn-primary btn-sm" onclick="sendToProposal()">Write proposal</button>
+    </div></div>`;
   document.getElementById('eval-result').style.display = 'block';
 }
 
@@ -306,44 +308,15 @@ function bar(label, val) {
   return `<div class="breakdown-row"><span class="breakdown-label">${label}</span><div class="bar-wrap"><div class="bar-fill" style="width:${val}%"></div></div><span style="font-size:12px;min-width:32px;text-align:right;color:#888;">${val}%</span></div>`;
 }
 
-function sendToProposal() {
-  document.getElementById('prop-job').value = document.getElementById('job-input').value;
-  switchTab('proposal');
-}
-
-function clearEval() {
-  document.getElementById('job-input').value = '';
-  document.getElementById('eval-result').style.display = 'none';
-}
+function sendToProposal() { document.getElementById('prop-job').value = document.getElementById('job-input').value; switchTab('proposal'); }
+function clearEval() { document.getElementById('job-input').value = ''; document.getElementById('eval-result').style.display = 'none'; }
 
 async function generateProposal() {
   const job = document.getElementById('prop-job').value.trim();
   if (!job) return;
   document.getElementById('prop-loading').style.display = 'flex';
   document.getElementById('prop-result').style.display = 'none';
-
-  const prompt = `Write an Upwork proposal for Nick.
-
-NICK'S PROFILE:
-${PROFILE}
-
-JOB POST:
-${job}
-
-TONE: ${tone}
-
-Rules:
-- Short opening that shows you read the job (no "I saw your post")
-- 2-3 sentences connecting Nick's specific experience to this job
-- One concrete relevant example or result
-- Brief close with a clear next step
-- 150-200 words max
-- No em dashes, no corporate fluff, no "I am writing to"
-- First person, direct, conversational
-- Do NOT include a subject line or greeting like "Hi there"
-
-Respond with ONLY the proposal text, nothing else.`;
-
+  const prompt = `Write an Upwork proposal for this freelancer.\n\nFREELANCER PROFILE:\n${profileToString()}\n\nJOB POST:\n${job}\n\nTONE: ${tone}\n\nRules:\n- Short opening that shows you read the job\n- 2-3 sentences connecting their experience to this job\n- One concrete relevant example\n- Brief close with a clear next step\n- 150-200 words max\n- No em dashes, no fluff, no "I am writing to"\n- First person, direct, conversational\n- No subject line or greeting\n\nRespond with ONLY the proposal text.`;
   const text = await callClaude(prompt);
   document.getElementById('prop-loading').style.display = 'none';
   if (!text) return;
@@ -373,46 +346,35 @@ function logApp() {
   const conn = parseInt(document.getElementById('c-connects').value);
   const status = document.getElementById('c-status').value;
   if (!job || isNaN(conn)) return;
-  applications.push({ job, conn, status, date: new Date().toLocaleDateString() });
+  applications.push({ job, conn, status });
   spent += conn;
   balance = Math.max(0, balance - conn);
   document.getElementById('c-job').value = '';
   document.getElementById('c-connects').value = '';
-  saveData();
-  refreshMetrics();
-  renderLog();
+  saveData(); refreshMetrics(); renderLog();
 }
 
 function refreshMetrics() {
   document.getElementById('m-balance').textContent = balance;
   document.getElementById('m-spent').textContent = spent;
-  const responses = applications.filter(a => a.status === 'response').length;
   const total = applications.length;
+  const responses = applications.filter(a => a.status === 'response').length;
   document.getElementById('m-rate').textContent = total ? Math.round((responses/total)*100) + '%' : '—';
-  const alert = document.getElementById('low-connects-alert');
-  if (balance <= 6 && balance >= 0) {
-    alert.style.display = 'block';
-    alert.textContent = `Low connects: ${balance} remaining — roughly ${Math.floor(balance/5)} application${Math.floor(balance/5)!==1?'s':''} left at 5 connects each.`;
-  } else { alert.style.display = 'none'; }
+  const al = document.getElementById('low-connects-alert');
+  if (balance <= 6 && total > 0) { al.style.display = 'block'; al.textContent = `Low connects: ${balance} remaining.`; }
+  else al.style.display = 'none';
 }
 
 function renderLog() {
-  if (!applications.length) {
-    document.getElementById('log-wrap').style.display = 'none';
-    document.getElementById('empty-log').style.display = 'block';
-    return;
-  }
+  if (!applications.length) { document.getElementById('log-wrap').style.display = 'none'; document.getElementById('empty-log').style.display = 'block'; return; }
   document.getElementById('log-wrap').style.display = 'block';
   document.getElementById('empty-log').style.display = 'none';
-  const rows = applications.slice().reverse().map(a => {
+  document.getElementById('log-body').innerHTML = applications.slice().reverse().map(a => {
     const cls = a.status === 'response' ? 's-response' : a.status === 'pass' ? 's-pass' : 's-sent';
     const label = a.status === 'response' ? 'Response' : a.status === 'pass' ? 'No response' : 'Sent';
     return `<tr><td>${a.job}</td><td>${a.conn}</td><td><span class="status-badge ${cls}">${label}</span></td></tr>`;
   }).join('');
-  document.getElementById('log-body').innerHTML = rows;
 }
-
-refreshMetrics();
 </script>
 </body>
 </html>
