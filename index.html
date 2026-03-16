@@ -193,14 +193,14 @@ function renderSetup() {
       <h2>Step 2 — Set up your profile</h2>
       <p>Your profile is what powers the job evaluator and proposal writer. The more detail you add, the better the results.</p>
       <div style="background:#f5f5f3;border:1.5px dashed #ddd;border-radius:10px;padding:1.25rem;margin-bottom:1.25rem;">
-        <div style="font-size:13px;font-weight:500;margin-bottom:4px;">Upload your Upwork profile screenshot</div>
-        <div style="font-size:12px;color:#888;margin-bottom:12px;">Take a screenshot of your Upwork profile page and upload it. Claude will read it and fill in your details automatically.</div>
+        <div style="font-size:13px;font-weight:500;margin-bottom:4px;">Upload your Upwork profile screenshots</div>
+        <div style="font-size:12px;color:#888;margin-bottom:12px;">Screenshot your Upwork profile in sections as you scroll and upload all of them. Claude will read every image and combine the info to fill in your profile.</div>
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-          <input type="file" id="profile-img" accept="image/*" style="display:none;" onchange="handleImageUpload(this)">
-          <button class="btn btn-sm" onclick="document.getElementById('profile-img').click()">Choose screenshot</button>
+          <input type="file" id="profile-img" accept="image/*" multiple style="display:none;" onchange="handleImageUpload(this)">
+          <button class="btn btn-sm" onclick="document.getElementById('profile-img').click()">Choose screenshots</button>
           <div id="img-status" style="font-size:12px;color:#888;"></div>
         </div>
-        <div id="scan-loading" style="display:none;font-size:13px;color:#888;margin-top:10px;">Reading your profile...</div>
+        <div id="scan-loading" style="display:none;font-size:13px;color:#888;margin-top:10px;display:flex;align-items:center;gap:8px;"><span id="scan-progress"></span></div>
       </div>
       <div style="font-size:11px;font-weight:500;color:#888;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:10px;">Or fill in manually</div>
       <div class="form-row"><label>Your name</label><input type="text" id="p-name" placeholder="e.g. Alex Chen"></div>
@@ -246,60 +246,71 @@ function saveProfile() {
 function editProfile() { localStorage.removeItem('upwork_profile'); renderSetup(); }
 
 async function handleImageUpload(input) {
-  const file = input.files[0];
-  if (!file) return;
+  const files = Array.from(input.files);
+  if (!files.length) return;
   const key = getKey();
   if (!key) { alert('Please save your API key first.'); return; }
-  document.getElementById('img-status').textContent = file.name;
-  document.getElementById('scan-loading').style.display = 'block';
-  const reader = new FileReader();
-  reader.onload = async (e) => {
-    const base64 = e.target.result.split(',')[1];
-    const mediaType = file.type || 'image/png';
-    const prompt = `This is a screenshot of someone's Upwork freelancer profile. Extract the following information and respond ONLY with valid JSON, no markdown:
+
+  const statusEl = document.getElementById('img-status');
+  const loadEl = document.getElementById('scan-loading');
+  const progressEl = document.getElementById('scan-progress');
+
+  statusEl.textContent = files.length + ' screenshot' + (files.length > 1 ? 's' : '') + ' selected';
+  statusEl.style.color = '#888';
+  loadEl.style.display = 'flex';
+  progressEl.textContent = 'Reading screenshots...';
+
+  const toBase64 = (file) => new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = e => resolve({ base64: e.target.result.split(',')[1], mediaType: file.type || 'image/png' });
+    r.onerror = reject;
+    r.readAsDataURL(file);
+  });
+
+  try {
+    const images = await Promise.all(files.map(toBase64));
+    const content_blocks = [];
+    images.forEach((img, i) => {
+      content_blocks.push({ type: 'text', text: `Screenshot ${i + 1} of ${images.length}:` });
+      content_blocks.push({ type: 'image', source: { type: 'base64', media_type: img.mediaType, data: img.base64 } });
+    });
+    content_blocks.push({ type: 'text', text: `These are ${images.length} scrolled screenshots of someone's Upwork freelancer profile page. Read all of them together and extract the following. Respond ONLY with valid JSON, no markdown:
 {
   "name": "<full name>",
   "role": "<job title or headline>",
-  "skills": "<comma separated list of skills shown>",
-  "work": "<work history summary, company names, roles, dates if visible>",
+  "skills": "<comma separated list of all skills shown across all screenshots>",
+  "work": "<work history summary combining all roles, company names, dates visible across screenshots>",
   "rate": "<hourly rate if visible, otherwise empty>",
-  "strengths": "<key strengths or specialties based on their profile bio and skills>"
+  "strengths": "<key strengths and specialties based on their bio, skills, and experience across all screenshots>"
 }
-If a field is not visible, leave it as an empty string.`;
-    try {
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 1000,
-          messages: [{ role: 'user', content: [
-            { type: 'image', source: { type: 'base64', media_type: mediaType, data: base64 } },
-            { type: 'text', text: prompt }
-          ]}]
-        })
-      });
-      if (!res.ok) { const err = await res.json(); throw new Error(err.error?.message || res.status); }
-      const data = await res.json();
-      const text = data.content.map(c => c.text || '').join('').trim();
-      const p = JSON.parse(text.replace(/```json|```/g,'').trim());
-      if (document.getElementById('p-name')) {
-        document.getElementById('p-name').value = p.name || '';
-        document.getElementById('p-role').value = p.role || '';
-        document.getElementById('p-skills').value = p.skills || '';
-        document.getElementById('p-work').value = p.work || '';
-        document.getElementById('p-rate').value = p.rate || '';
-        document.getElementById('p-strengths').value = p.strengths || '';
-      }
-      document.getElementById('img-status').textContent = 'Profile filled in. Review and save.';
-      document.getElementById('img-status').style.color = '#3b6d11';
-    } catch(err) {
-      document.getElementById('img-status').textContent = 'Error reading image: ' + err.message;
-      document.getElementById('img-status').style.color = '#a32d2d';
+If a field is not visible in any screenshot, leave it as an empty string.` });
+
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+      body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 1000, messages: [{ role: 'user', content: content_blocks }] })
+    });
+
+    if (!res.ok) { const err = await res.json(); throw new Error(err.error?.message || res.status); }
+    const data = await res.json();
+    const text = data.content.map(c => c.text || '').join('').trim();
+    const p = JSON.parse(text.replace(/```json|```/g,'').trim());
+
+    if (document.getElementById('p-name')) {
+      document.getElementById('p-name').value = p.name || '';
+      document.getElementById('p-role').value = p.role || '';
+      document.getElementById('p-skills').value = p.skills || '';
+      document.getElementById('p-work').value = p.work || '';
+      document.getElementById('p-rate').value = p.rate || '';
+      document.getElementById('p-strengths').value = p.strengths || '';
     }
-    document.getElementById('scan-loading').style.display = 'none';
-  };
-  reader.readAsDataURL(file);
+    statusEl.textContent = 'Profile filled in from ' + files.length + ' screenshot' + (files.length > 1 ? 's' : '') + '. Review and save.';
+    statusEl.style.color = '#3b6d11';
+  } catch(err) {
+    statusEl.textContent = 'Error: ' + err.message;
+    statusEl.style.color = '#a32d2d';
+  }
+  loadEl.style.display = 'none';
 }
 
 function profileToString() {
